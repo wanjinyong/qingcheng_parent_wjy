@@ -13,9 +13,6 @@ public class Para implements Serializable{
 	@Id
 	private Integer id;//id
 
-
-	
-
 	private String name;//名称
 
 	private String options;//选项

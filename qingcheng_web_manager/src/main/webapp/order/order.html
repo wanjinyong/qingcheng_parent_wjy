@@ -54,18 +54,7 @@
             <div class="filter-container">
                 <!--查询表单-->
                 <el-form :inline="true" >
-                          <el-form-item label="数量合计">
-<el-input v-model="searchMap.totalNum" placeholder="数量合计" class="filter-item" ></el-input></el-form-item>
-          <el-form-item label="金额合计">
-<el-input v-model="searchMap.totalMoney" placeholder="金额合计" class="filter-item" ></el-input></el-form-item>
-          <el-form-item label="优惠金额">
-<el-input v-model="searchMap.preMoney" placeholder="优惠金额" class="filter-item" ></el-input></el-form-item>
-          <el-form-item label="邮费">
-<el-input v-model="searchMap.postFee" placeholder="邮费" class="filter-item" ></el-input></el-form-item>
-          <el-form-item label="实付金额">
-<el-input v-model="searchMap.payMoney" placeholder="实付金额" class="filter-item" ></el-input></el-form-item>
-          <el-form-item label="支付类型，1、在线支付、0 货到付款">
-<el-input v-model="searchMap.payType" placeholder="支付类型，1、在线支付、0 货到付款" class="filter-item" ></el-input></el-form-item>
+
           <el-form-item label="订单创建时间">
 <el-input v-model="searchMap.createTime" placeholder="订单创建时间" class="filter-item" ></el-input></el-form-item>
           <el-form-item label="订单更新时间">

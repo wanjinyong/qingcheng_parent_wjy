@@ -1,23 +1,39 @@
 package com.qingcheng.service.impl;
 import com.alibaba.dubbo.config.annotation.Service;
+import com.alibaba.fastjson.JSON;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
+import com.qingcheng.dao.CategoryBrandMapper;
+import com.qingcheng.dao.CategoryMapper;
+import com.qingcheng.dao.SkuMapper;
 import com.qingcheng.dao.SpuMapper;
 import com.qingcheng.entity.PageResult;
-import com.qingcheng.pojo.goods.Spu;
+import com.qingcheng.pojo.goods.*;
 import com.qingcheng.service.goods.SpuService;
+import com.qingcheng.util.IdWorker;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 import tk.mybatis.mapper.entity.Example;
 
+import java.lang.reflect.Array;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-@Service
+@Service(interfaceClass =SpuService.class)
 public class SpuServiceImpl implements SpuService {
 
     @Autowired
+    private SkuMapper skuMapper;
+    @Autowired
     private SpuMapper spuMapper;
-
+    @Autowired
+    private IdWorker idWorker;
+    @Autowired
+    private CategoryMapper categoryMapper;
+    @Autowired
+    private CategoryBrandMapper categoryBrandMapper;
     /**
      * 返回全部记录
      * @return
@@ -94,6 +110,8 @@ public class SpuServiceImpl implements SpuService {
     public void delete(String id) {
         spuMapper.deleteByPrimaryKey(id);
     }
+
+
 
     /**
      * 构建查询条件
@@ -196,6 +214,141 @@ public class SpuServiceImpl implements SpuService {
 
         }
         return example;
+    }
+
+    /**
+     *
+     * @param goods
+     */
+    @Transactional
+    public void save(Goods goods) {
+        //保存spu信息
+        Spu spu = goods.getSpu();
+            if (spu.getId()==null){
+                spu.setId(idWorker.nextId() + "");
+                spuMapper.insert(spu);
+            }else {//修改
+        //删除原来的SKU列表
+                Example example =new Example(Sku.class);
+                Example.Criteria criteria=example.createCriteria();
+                criteria.andEqualTo("spuid",spu.getId());
+                skuMapper.deleteByExample(example);
+                spuMapper.updateByPrimaryKey(spu);
+            }
+
+
+
+        Date date = new Date();
+
+        Category category = categoryMapper.selectByPrimaryKey(spu.getCategory3Id());
+        //保存skuList信息
+        List<Sku> skuList = goods.getSkuList();
+        for (Sku sku : skuList) {
+            if(sku.getId()==null){
+                sku.setId(idWorker.nextId() + "");//新增的时候新增
+                sku.setCreateTime(date);//新增加入时间
+            }
+            //外键
+            sku.setSpuId(sku.getId());
+            //sku名称 =spu名称+规格列表
+            String name = spu.getName();
+            if(sku.getSpec()==null||"".equals(sku.getSpec())){
+                sku.setSpec("{}");
+            }
+            Map<String, String> specMap = JSON.parseObject(sku.getSpec(), Map.class);
+            for (String value : specMap.values()) {
+                name = " " + value;
+            }
+            sku.setName(name);
+            sku.setUpdateTime(date);
+            sku.setCategoryId(spu.getCategory3Id());
+            sku.setCategoryName(category.getName());//分类名称
+            sku.setCommentNum(0);
+            sku.setSaleNum(0);
+
+            skuMapper.insert(sku);
+
+        }
+        //建立关联品牌分类
+        CategoryBrand categoryBrand = new CategoryBrand();
+        categoryBrand.setBrandId(spu.getBrandId());
+        categoryBrand.setCategoryId(spu.getCategory3Id());
+        int count = categoryBrandMapper.selectCount(categoryBrand);
+        if (count == 0) {
+
+            categoryBrandMapper.insert(categoryBrand);
+        }
+    }
+
+    public Goods findGoodsById(String id) {
+        //查询spu
+             Spu spu=  spuMapper.selectByPrimaryKey(id);
+        //查询list
+             Example example=new Example(Sku.class);
+             Example.Criteria criteria=example.createCriteria();
+             criteria.andEqualTo("spuId",id);
+             List<Sku> skuList= skuMapper.selectByExample(example);
+        //封装
+             Goods goods =new Goods();
+             goods.setSpu(spu);
+             goods.setSkuList(skuList);
+        return goods;
+    }
+    @Transactional
+    public void audit(String id, String status, String message) {
+        //修改状态
+          Spu spu= new Spu();
+          spu.setId(id);
+          if(status.equals("1")){//审核
+            spu.setIsMarketable("1");//上架
+          }
+          spuMapper.updateByPrimaryKeySelective(spu);
+
+        //记录商品商品审核
+
+
+        //记录日志
+
+    }
+//下架
+    public void pull(String id) {
+       Spu spu =new Spu();
+       spu.setId(id);
+       spu.setIsMarketable("0");
+       spuMapper.updateByPrimaryKeySelective(spu);
+       //
+
+    }
+//上架
+        public void put(String id) {
+        Spu spu =spuMapper.selectByPrimaryKey(id);
+            if(!spu.getStatus().equals("1")){
+            throw new  RuntimeException("此商品没有审核通过");
+            }
+            spu.setIsMarketable("1");
+            spuMapper.updateByPrimaryKeySelective(spu);
+            //记录日志
+
+    }
+    //批量上架
+    public int putMany(String[] ids) {
+
+        Spu spu =new Spu();
+        spu.setIsMarketable("1");
+        Example example= new Example(Spu.class);
+        Example.Criteria criteria=example.createCriteria();
+        criteria.andIn("id", Arrays.asList(ids));
+        criteria.andEqualTo("isMarketable","0");
+        criteria.andEqualTo("status","1");
+        int i=  spuMapper.updateByExampleSelective(spu,example);//组合拳更新
+
+        //添加日志
+
+        return  i;
+    }
+
+    public int pullMany(String[] ids) {
+        return 0;
     }
 
 }
